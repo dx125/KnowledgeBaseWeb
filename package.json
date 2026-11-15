@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:real": "vite --mode development",
     "dev:mock": "vite --mode mock",
     "build": "tsc && vite build",
     "build:mock": "tsc && vite build --mode mock",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:mock": "vite preview --mode mock"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

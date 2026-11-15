@@ -28,6 +28,16 @@ npm run build            # type-check + production build into dist/
 You need a deployed backend (Edge Function `kb` + data) — see the KnowledgeBase repo README.
 No backend at hand? Use mock mode below.
 
+## Choosing a mode: real backend or mock
+
+| Goal | Dev server | Production build |
+|---|---|---|
+| Real backend (needs `.env`) | `npm run dev` (or `dev:real`) | `npm run build` |
+| Mock, no backend | `npm run dev:mock` | `npm run build:mock` (+ `npm run preview:mock`) |
+
+Same code, same UI; the mode is chosen only by the Vite `--mode` (mock loads `.env.mock`, which sets
+`VITE_MOCK_API=1`). Mock mode shows an orange "MOCK DATA" badge in the corner.
+
 ## Running without a backend (mock mode)
 
 ```bash
