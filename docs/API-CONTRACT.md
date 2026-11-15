@@ -2,6 +2,7 @@
 
 Owned by the backend repo (`supabase/functions/kb/index.ts`, README "HTTP API"). This is the
 client's working summary; if the two disagree, the backend wins — and fix this file.
+The offline mock in `src/mocks/` (MSW, `npm run dev:mock`) implements this contract — keep it in sync with this file.
 
 Base URL: `<VITE_SUPABASE_URL>/functions/v1/kb`. Every route except `GET /` requires headers
 `apikey: <anon key>` and `Authorization: Bearer <user access token>`. The anon key alone → `401`.

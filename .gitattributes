@@ -1,0 +1,3 @@
+# Keep shell scripts LF (bash breaks on CRLF) and the Windows launcher CRLF, whatever core.autocrlf says.
+*.sh text eol=lf
+*.cmd text eol=crlf

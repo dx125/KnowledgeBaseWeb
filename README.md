@@ -26,6 +26,33 @@ npm run build            # type-check + production build into dist/
 ```
 
 You need a deployed backend (Edge Function `kb` + data) — see the KnowledgeBase repo README.
+No backend at hand? Use mock mode below.
+
+## Running without a backend (mock mode)
+
+```bash
+npm ci
+npm run dev:mock     # http://localhost:5173 — no backend, no .env needed
+npm run build:mock   # type-check + build with the mock included (into dist/)
+```
+
+- **What is mocked:** both network dependencies, inside the browser, by [MSW](https://mswjs.io):
+  the KB API (every route in [docs/API-CONTRACT.md](docs/API-CONTRACT.md), incl. 401s, locale
+  fallback, internal scope, search, Q&A) and Supabase Auth (sign-up, sign-in, token refresh,
+  sign-out). Any email with a password of 6+ characters signs in; sign-up signs you in directly.
+  Responses take 100–300 ms so loading states are visible. Known differences from the real API
+  are listed at the top of `src/mocks/api.ts`.
+- **The data is synthetic:** hand-written sample content in `src/mocks/fixtures/` (8 topics,
+  31 cards, 10 questions) — no real people, messages or dataset rows, and not relocation advice.
+- **Config:** the committed `.env.mock` holds dummy values only (`VITE_MOCK_API=1`, a fake project
+  URL and key) and overrides `.env` in this mode.
+- **Real mode is unchanged:** `npm run dev` / `npm run build` don't include the mock.
+- Browser support: MSW uses a Service Worker on `localhost`/https; on a plain-http, non-localhost
+  address it intercepts inside the page instead. A `build:mock` output contains the fixtures —
+  never deploy it.
+- Upload archive for a sandbox: double-click `pack-upload.cmd` (Windows, needs Git for Windows) or
+  run `bash scripts/pack.sh` → `../kb-web-upload.zip` (source only; the script fails if env files,
+  build output or likely secrets would be included).
 
 ## Configuration & security
 
@@ -50,6 +77,8 @@ src/
   lib/api.ts              # typed client for the backend API
   lib/auth.ts             # supabase-js client (AUTH ONLY)
   i18n.ts                 # UI-chrome strings for ru/en/es/de/pt (content comes from the API)
+  mocks/                  # mock mode only: MSW handlers (API + auth) and synthetic fixtures
+scripts/pack.sh           # builds the sandbox upload archive
 docs/
   API-CONTRACT.md         # the backend endpoints this client consumes
   BACKEND-REQUESTS.md     # backend work the web roadmap needs (tracked in the backend repo)

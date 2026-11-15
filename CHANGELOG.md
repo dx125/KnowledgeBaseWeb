@@ -4,6 +4,16 @@ The web app used to live in the KnowledgeBase (backend) repo under `web/`. This 
 its history. Entries before 2026-11-15 were reconstructed from the backend repo's git log and
 changelogs; dataset/backend details stay in the backend repo's changelogs.
 
+## 2026-11-15 — Mock mode: run and build without a backend
+- `npm run dev:mock` / `npm run build:mock` (`vite --mode mock`; dummy values in the committed
+  `.env.mock`). MSW (`msw` devDependency, `public/mockServiceWorker.js`) mocks the KB API and
+  Supabase Auth in the browser from synthetic fixtures in `src/mocks/`.
+- `src/main.tsx` starts the mock before rendering and now imports `App` lazily, so the Supabase
+  auth client is only created once the mock is listening. Normal builds drop the mock; `App` is
+  now a separate JS chunk (same total size).
+- `scripts/pack.sh` builds `../kb-web-upload.zip` for sandbox uploads and fails if env files,
+  build output or likely secrets would be included.
+
 ## 2026-11-15 — Split into its own repository
 - Moved `web/` out of the backend repo with a fresh history (no old commits imported).
 - `vite.config.ts` no longer reads a shared root `.env`; the app now has its own `.env`
