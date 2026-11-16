@@ -1,6 +1,6 @@
 // Mock Supabase Auth (GoTrue) — mock mode only.
 //
-// Implements the endpoints @supabase/supabase-js (auth-js 2.108) calls for this app, with
+// Implements the endpoints @supabase/auth-js (2.108) calls for this app, with
 // the same paths and response shapes:
 //   POST /auth/v1/token?grant_type=password       signInWithPassword
 //   POST /auth/v1/token?grant_type=refresh_token  auto-refresh / expired session on load
@@ -10,13 +10,13 @@
 //
 // Any email + a password of ≥ 6 characters signs in. Tokens are fake but well-formed JWTs
 // (never signed, never accepted anywhere else) that carry the user's identity, so the
-// mock stays stateless: a session persisted by supabase-js keeps working after a page
+// mock stays stateless: a session persisted by the auth client keeps working after a page
 // reload, when all in-page mock state starts empty again.
 
 import { http, HttpResponse } from 'msw';
 import { ANON_KEY, AUTH_BASE, latency } from './config';
 
-const ACCESS_TOKEN_TTL_S = 3600; // GoTrue's default; supabase-js refreshes shortly before expiry
+const ACCESS_TOKEN_TTL_S = 3600; // GoTrue's default; the auth client refreshes shortly before expiry
 const MIN_PASSWORD_LENGTH = 6;
 
 /** Sessions ended by sign-out during this page's lifetime. */

@@ -7,17 +7,25 @@ full page with trust signals, related context and "see also" navigation.
 **Why first:** Plans 2 and 4 both need routes (search state in the URL, journey steps as deep links), and
 the community's main distribution channel is a chat where people paste links to answers.
 
+> **Status (2026-11-16): Phase 0 delivered part of this plan** — the router, URL-driven language, the topic / Q&A
+> URLs with language-free topic slugs, search text in `?q=`, scroll restoration, topic tiles as links and a
+> not-found page. Still to do: card slugs and the card page, `/search`, share, see-also, FAQ permalinks, auth
+> return-to-link for public pages, focus management. Task-by-task status in §8. Phase 0 decisions that change
+> this plan: **D6** (signed in, the account language wins — §3, §11) and **D8** (internal toggle in memory only).
+>
 > **Decisions (2026-11-15):** **D1 = public pages without login "for now"** → §9 is **in scope** and §4 (auth) changes:
 > content routes are **not** wrapped in `RequireAuth`; only account features (locale default, internal toggle,
 > future opt-ins) prompt for sign-in. **D2 = `localhost`** → no hosting config yet; share links only resolve on this
 > machine; OG previews, `sitemap.xml`/`hreflang` and the CORS lock-down are deferred. Keep every URL host-agnostic
 > (relative links, no hard-coded origin). `internal=1` content stays signed-in only.
 
-## 1. Current state (verified)
+## 1. Current state (verified; updated 2026-11-16 after Phase 0)
 
-- No router; all view state is in `App.tsx` `useState`; no URL changes when you open a topic or search.
+- ~~No router; all view state is in `App.tsx` `useState`.~~ **Done in Phase 0:** react-router 7 data router
+  (`src/app/routes.tsx`), screens `HomeRoute` / `TopicRoute` / `NotFoundRoute` (lazy), URL scheme in
+  `src/lib/paths.ts`. Topics, Q&A and searches have URLs; cards do not.
 - `FaqItem` is an accordion; there is no way to link to one answer. `CardItem` shows a truncated body with a
-  lazy "related info" panel; there is no single-card view.
+  lazy "related info" panel (fetched with `useCardDetail`, cached per card + locale); there is no single-card view.
 - `GET /cards/:id` already returns title, body, keywords, subtopics, glossary, entities, resources — enough
   for a card page. It returns **no links to other cards**.
 - Dataset has card relations that are never ingested (details in `README.md`): `related_card_ids` is noise
@@ -38,25 +46,34 @@ search UI (Plan 2), journeys (Plan 4).
 
 Language is a **path prefix**; slugs are language-independent so one link serves every locale.
 
-| Path | Screen |
-|---|---|
-| `/` | redirect → `/{lang}` (lang: stored choice → account default → browser language → `ru`) |
-| `/:lang` | Knowledge-base home (topic grid) |
-| `/:lang/topics/:topicSlug` | topic page (card list; `?cat=` optional filter) |
-| `/:lang/faq` · `/:lang/faq/topics/:topicSlug` | Q&A home (most asked) · Q&A topic |
-| `/:lang/c/:cardSlug` | **card page** (KB cards and FAQ answers alike) |
-| `/:lang/search?q=…` | search results (filled in by Plan 2; stub now) |
-| `/:lang/journeys[/:id[/steps/:stepId]]` | reserved for Plan 4 |
-| `/login?next=/ru/c/…` | sign-in, returns to `next` |
+| Path | Screen | Status |
+|---|---|---|
+| `/` | redirect → `/{lang}` | ✅ as built: last language used on this device → `ru`; signed in, then the account language (D6). No browser-language step. |
+| `/:lang` | Knowledge-base home (topic grid) | ✅ (`?q=` = whole-base search results) |
+| `/:lang/topics/:topicSlug` | topic page (card list; `?cat=` optional filter) | ✅ (`?q=` = search within the topic; `?cat=` not yet) |
+| `/:lang/faq` · `/:lang/faq/topics/:topicSlug` | Q&A home (most asked) · Q&A topic | ✅ (`?q=` as above). A Q&A topic under `/topics/` (or the reverse) redirects to its section. |
+| `/:lang/c/:cardSlug` | **card page** (KB cards and FAQ answers alike) | ☐ |
+| `/:lang/search?q=…` | search results (filled in by Plan 2; stub now) | ☐ — today whole-base search lives at `/:lang?q=` / `/:lang/faq?q=`; when `/search` lands, redirect those (keep old links working). |
+| `/:lang/journeys[/:id[/steps/:stepId]]` | reserved for Plan 4 | — |
+| `/login?next=/ru/c/…` | sign-in, returns to `next` | ☐ — today the login form renders **in place** at the requested URL, which therefore survives sign-in (see §4). |
+| anything else | not-found page with a link to the section home | ✅ |
 
-Rules: `:lang ∈ ru|en|es|de|pt`; unknown prefix → treated as a path without a language and redirected;
-the locale switcher swaps the prefix and keeps the rest; `internal` is a **user preference**, not part of
-shared URLs.
+Rules: `:lang ∈ ru|en|es|de|pt`; unknown prefix → treated as a path without a language and redirected ✅;
+the locale switcher swaps the prefix and keeps the rest (history *replace*) ✅; `internal` is a **user
+preference**, not part of shared URLs ✅ (D8: in memory only).
 
-### Slug codec (`src/lib/slug.ts`)
+**D6 (2026-11-16):** signed in, the account's default language always wins — a URL with another prefix is
+redirected to the account language. A shared link therefore opens the same content in the *recipient's*
+language when they are signed in; the prefix decides only for signed-out visitors (public pages, §9).
 
-- `topic.residency_cedula_immigration` → `residency_cedula_immigration` (drop `topic.`).
-- `card.residency_cedula_immigration.reference.ref_permiso_reingreso`
+### Slug codec (`src/lib/paths.ts`)
+
+The codec lives with the path builders in `src/lib/paths.ts` (not a separate `slug.ts`).
+
+- ✅ `topic.residency_cedula_immigration` → `residency_cedula_immigration` (drop `topic.`) — `topicSlug` /
+  `topicIdFromSlug` (accepts `[a-z0-9_]+` only, returns `null` otherwise), round-trip + hostile-input tests.
+- ☐ Card slugs:
+  `card.residency_cedula_immigration.reference.ref_permiso_reingreso`
   → `residency_cedula_immigration~reference~ref_permiso_reingreso` (drop `card.`, `.` → `~`).
   `~` is an RFC 3986 unreserved character and does not occur in IDs. Dots are avoided because many SPA servers
   and CDNs treat a final path segment containing `.` as a static file and skip the rewrite to `index.html`.
@@ -65,6 +82,13 @@ shared URLs.
   IDs with zero-padded `qNN`); rejects slugs with `/`, `..`, whitespace.
 
 ## 4. Auth and deep links
+
+> **As built in Phase 0:** every route under `/:lang` goes through `SessionGate` (`src/app/guards.tsx`). Signed
+> out, it renders the login form **at the requested URL**, so the deep link survives sign-in with no redirect
+> and no `next` parameter (no open-redirect surface). Session loading shows a spinner, never the login form,
+> and the gate also waits for the profile so content is never shown in the wrong language (D6). The design
+> below (`/login?next=`, `safeNext`) is still needed once public pages (D1, §9) let signed-out visitors see
+> content and sign-in becomes an explicit action.
 
 - `RequireAuth` wraps all app routes. Signed-out → `/login?next=<encoded current path+search>`; after
   sign-in/sign-up, navigate to `next`.
@@ -161,25 +185,30 @@ friendly 404 with the topic link and a search box prefilled with the slug's word
 
 Order matters; each step ships behind the previous screen still working.
 
-1. Phase 0 (router skeleton + query layer) — prerequisite.
-2. `src/lib/slug.ts`, `src/lib/routes.ts` (typed builders `cardPath(lang, id)`, `topicPath`, `searchPath`,
-   `faqTopicPath`; parse helpers) + unit tests.
-3. `RequireAuth`, `safeNext()` guard, login page honouring `next`; tests.
-4. Route components: `HomeRoute`, `TopicRoute`, `FaqHomeRoute`, `FaqTopicRoute`, `CardRoute`,
-   `SearchRoute` (stub using today's search), `NotFoundRoute`. Move data loading into per-route hooks
-   (`useTopics`, `useTopicCards`, `useCard`, `useQuestions`).
-5. `useLocale` becomes URL-driven (`:lang`), still persisting to `localStorage` and the profile; locale switch =
-   `navigate(swapLang(location, next))`. Redirect from `/`.
-6. `CardPage` + `RelatedPanel` (extracted) + `Breadcrumb` + `TopicNeighbors` + `ShareButton` + `SeeAlso`.
-7. Convert `CardItem` / `FaqItem` / `TopicGrid` to links (`<Link>` semantics: middle-click and "open in new
-   tab" work); add permalink icon.
-8. Scroll restoration and focus management on navigation; `useDocumentTitle`.
+Status after Phase 0 (2026-11-16): ✅ done · ◐ partly · ☐ to do.
+
+1. ✅ Phase 0 (router skeleton + query layer) — prerequisite.
+2. ◐ Path builders and codec in `src/lib/paths.ts` (instead of `slug.ts` + `routes.ts`): `homePath`, `topicPath`
+   (Q&A topics go under `/faq/topics/`, so there is no separate `faqTopicPath`), `splitLang`, `swapLang`,
+   `topicSlug` / `topicIdFromSlug`, with unit tests. ☐ `cardPath`, card codec, `searchPath`.
+3. ☐ `RequireAuth`, `safeNext()` guard, login page honouring `next`; tests. Until public pages exist, the in-place
+   login of `SessionGate` covers deep links (§4).
+4. ◐ Route components: ✅ `HomeRoute` and `TopicRoute` (each serves both KB and Q&A via the route `handle`),
+   ✅ `NotFoundRoute`; ☐ `CardRoute`, `SearchRoute`. Data hooks exist in `src/data/queries.ts`: `useTopics`,
+   `useTopicCards`, `useCardDetail` (= `useCard`), `useQuestions`, `useSearch`, `useProfile`.
+5. ✅ Language is URL-driven (`useLocale()` reads the `:lang` context; `useSwitchLocale()` swaps the prefix with
+   history *replace* and saves to localStorage + profile); `/` redirects. Signed in, the account language wins (D6).
+6. ☐ `CardPage` + `RelatedPanel` (extracted) + `Breadcrumb` + `TopicNeighbors` + `ShareButton` + `SeeAlso`.
+7. ◐ ✅ `TopicGrid` tiles, section tabs, header title and back links are `<Link>`s. ☐ `CardItem` / `FaqItem`
+   titles as links + permalink icon.
+8. ◐ ✅ Scroll restoration (`ScrollRestoration`; search edits use `preventScrollReset`). ☐ Focus management on
+   navigation, `useDocumentTitle`; revisit the search boxes' `autoFocus` (documented lint exception) here.
 9. SPA hosting config for the chosen host (D2): a catch-all rewrite to `index.html` (e.g. `public/_redirects`
    `/*  /index.html  200` for Netlify/Cloudflare Pages, or `vercel.json` rewrites).
-10. i18n: new keys in all 5 dictionaries — `copyLink`, `linkCopied`, `share`, `seeAlso`, `readFirst`,
+10. ◐ i18n: `notFoundTitle`, `notFoundHint` exist. ☐ New keys in all 5 dictionaries — `copyLink`, `linkCopied`, `share`, `seeAlso`, `readFirst`,
     `moreInTopic`, `previousCard`, `nextCard`, `cardNotFound`, `cardNotFoundHint`, `shownInEnglish`,
     `startHere`, `relatedQuestions`, `readMoreInKb`.
-11. Docs: update `API-CONTRACT.md`, README routes table, CHANGELOG.
+11. Docs: update `API-CONTRACT.md`, README routes table, CHANGELOG, `src/mocks` (new endpoints/fields).
 
 ## 9. Phase 1b — public card pages (**approved by D1; build with Plan 1**)
 
@@ -203,19 +232,23 @@ Design (BR-13 becomes P1 and ships before the web routes that need it):
 
 ## 10. Testing
 
-- **Unit:** slug round-trip + hostile inputs; `safeNext`; route builders; `swapLang`; link-ordering/dedupe
-  helper for see-also; `redirect_to` handling.
+- **Unit:** slug round-trip + hostile inputs (✅ topics; ☐ cards); `safeNext`; route builders (✅ existing ones);
+  `swapLang` ✅; link-ordering/dedupe helper for see-also; `redirect_to` handling.
 - **Component (RTL + MSW):** card page renders all sections incl. missing optional ones (no resources, no
   see-also); share button both code paths (mock `navigator.share`/clipboard); 404; `locale_used` banner.
 - **E2E (Playwright, mock API):** deep link while signed out → login → lands on the card; back/forward
   restores previous screens; locale switch keeps slug; FAQ permalink opens the answer; mobile viewport.
-- **a11y:** axe on card page and topic page; keyboard order; focus on `<h1>` after navigation.
+  ✅ Already covered for topics / Q&A topics in `e2e/navigation.spec.ts` (deep link → login → page, reload,
+  back/forward, scroll restore, language switch, not found) — extend it to cards.
+- **a11y:** axe on card page and topic page (✅ topic page since Phase 0: `src/app/a11y.test.tsx`,
+  `e2e/a11y.spec.ts` — add the card page to both); keyboard order; focus on `<h1>` after navigation.
 
 ## 11. Acceptance criteria
 
 - Pasting `/{lang}/c/{slug}` into a fresh browser: after sign-in the exact card shows; reload keeps it.
 - Back/forward behave like a normal site across home → topic → card → search.
-- Same card slug opened with each of the 5 language prefixes shows localized text with the right `<html lang>`.
+- Same card slug opened with each of the 5 language prefixes shows localized text with the right `<html lang>`
+  — **signed out** (public pages). Signed in, every prefix lands on the account language (D6).
 - A renamed card's old link redirects; a removed card shows the friendly 404.
 - Cards from vendor topics no longer show "everything in the topic" as see-also; see-also is ≤ 6 relevant items.
 - `next` redirect guard passes the hostile-input tests.
@@ -228,11 +261,12 @@ Design (BR-13 becomes P1 and ships before the web routes that need it):
 | Whole-topic `related_card_ids` shown as "see also" | filter rule above + eval by spot-checking 20 cards per topic |
 | Dead links after dataset deploys | alias table + friendly 404 + never reuse IDs |
 | Email-confirmation flow loses `next` | stash `next` in `sessionStorage` before sign-up |
-| Hosting without SPA rewrite → 404 on reload | D2 early; Playwright test on the production build via `vite preview` |
+| Hosting without SPA rewrite → 404 on reload | D2 early; Playwright already runs against a production build via `vite preview` (Phase 0) — add the host's rewrite config with hosting |
 | `locale_used` requires a backend change | ship it with BR-6; until then hide the note |
 
 ## 13. Estimate
 
-Web 5–6 d (router/route split is the bulk; card page 1.5 d; share + guards + tests 1.5 d). Backend 2–3 d
+Web 5–6 d (router/route split is the bulk; card page 1.5 d; share + guards + tests 1.5 d). **Phase 0 delivered
+the router/route split, URL-driven language and the topic URLs (≈ 2 d of this), so ≈ 3–4 d remain.** Backend 2–3 d
 (BR-6 table + ingest + `get_card`, BR-7 aliases, BR-8 FAQ relations ≈ 0.5 d plus ~0.5 d review). Public pages
 (§9) would add 4–6 d.

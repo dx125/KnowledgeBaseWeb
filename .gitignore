@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-e2e/
 .env
 .env.*
 !.env.example
@@ -9,3 +10,6 @@ dist/
 .vite/
 coverage/
 *.tsbuildinfo
+test-results/
+playwright-report/
+blob-report/

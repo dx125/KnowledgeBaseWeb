@@ -15,10 +15,11 @@ async function enableMocking(): Promise<void> {
 // client, which may refresh a stored session right away — that request must reach the mock.
 enableMocking()
   .then(() => import('./App'))
-  .then(({ default: App }) => {
+  .then(({ default: App, createAppRouter }) => {
+    const router = createAppRouter();
     ReactDOM.createRoot(document.getElementById('root')!).render(
       <React.StrictMode>
-        <App />
+        <App router={router} />
       </React.StrictMode>,
     );
   });

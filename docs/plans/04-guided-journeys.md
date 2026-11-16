@@ -158,6 +158,12 @@ document** (steps are small and strongly ordered; relational tables would only a
 
 ## 5. Web implementation
 
+Builds on the Phase 0 foundation (`docs/DEVELOPMENT.md`): routes are lazy modules registered in
+`src/app/routes.tsx` with paths from `src/lib/paths.ts`; data hooks follow `src/data/` (query keys carry
+`locale` and `internal`, fetchers forward the `AbortSignal`); the `/journeys` endpoints get mock handlers and
+synthetic fixtures in `src/mocks/` so `dev:mock`, Vitest and Playwright work without the backend. The journeys
+chunk must stay out of the first load (D9).
+
 ```
 src/features/journeys/
   engine.ts        pure: evaluateRule, visibleSteps, blockedBy, stepStatus, nextStep, progress, explain

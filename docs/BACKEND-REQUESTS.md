@@ -31,5 +31,7 @@ Status legend: ☐ not started · ◐ in progress · ☑ done and **deployed**.
   not done until `supabase functions deploy kb` has run.
 - New tables get RLS and the same direct-access revoke as migration `0004`; only `service_role` reads them.
 - Any ranking/search change must be justified with eval-harness numbers (BR-9) in the PR.
-- Keep `docs/API-CONTRACT.md` (this repo) in sync when endpoints or fields change.
+- Keep `docs/API-CONTRACT.md` (this repo) in sync when endpoints or fields change, and update the web mock
+  (`src/mocks/api.ts` + fixtures) in the same web PR: `dev:mock`, all web tests and the Playwright suite run
+  against it, so a change the mock doesn't follow is invisible to CI.
 - Never put secrets, personal data, or raw chat messages in either repo.

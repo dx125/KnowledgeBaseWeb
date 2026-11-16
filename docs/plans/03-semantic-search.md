@@ -169,6 +169,11 @@ join; ~424 × 424 distance computations — trivial.
 
 ## 5. Web implementation (small)
 
+Phase 0 conventions apply (`docs/DEVELOPMENT.md`): response fields go into `src/lib/api.ts` types and the mock
+(`src/mocks/api.ts`) in the same PR. If Stage B embeds queries in the browser, the model runtime and weights are
+a lazy chunk/download triggered by the first search and must stay outside the `npm run size` first-load budget
+(D9 — 150 kB gzip).
+
 1. `search(params)` already carries `mode`; default stays server-chosen. Add `match_kind` to the response type.
 2. `SearchResultItem`: when `match_kind === 'semantic'` show a subtle chip **"Found by meaning"** (with a
    tooltip "matches your question even though the words differ"); no highlight is expected there.

@@ -7,8 +7,13 @@ snippets and filters (topic, type, category) whose state lives in the URL.
 **Hard prerequisite:** fix the ranking foundation first (BR-1, BR-2). Highlighting and filters on top of a
 query builder that ANDs its synonyms would polish the wrong results.
 
-## 1. Current state (verified)
+## 1. Current state (verified; updated 2026-11-16 after Phase 0)
 
+- **Phase 0 already provides:** search text in the URL (`?q=` on `/:lang`, `/:lang/faq` and topic pages; the
+  first search adds a history entry, refinements replace it); react-query `useSearch` with request cancellation
+  and protection against stale responses (tested in `src/data/queries.test.tsx`); 5-minute cache per
+  query + locale + scope; `SearchBar` ignores the echo of its own last value, so URL updates can't drop keystrokes.
+  While a new search loads the list is replaced by a spinner (D7).
 - `SearchBar` debounces 250 ms and calls `GET /search` (limit 50, or 100 inside a topic). Results are a flat
   list of full `CardItem`s; no snippet, no highlight, no "show more", no filters except "inside this topic"
   and the internal toggle. Q&A and KB searches are separate modes.
@@ -30,7 +35,7 @@ query builder that ANDs its synonyms would polish the wrong results.
 | Decision | Choice | Why |
 |---|---|---|
 | Where does ranking happen? | **Server only.** No client-side index. | Data is login-gated, ranking logic must live in one place (an index in the browser would drift from the SQL). Revisit only for offline (PWA) later. |
-| Making it feel instant | prefix matching on the last token, 120 ms debounce, request cancellation, keep previous results on screen while the next load (`keepPreviousData`), topic list filtered locally with zero latency | cheapest wins before any infrastructure |
+| Making it feel instant | prefix matching on the last token, 120 ms debounce, request cancellation (✅ Phase 0), keep previous results on screen while the next load (`keepPreviousData` — reverses D7's "spinner for now"; confirm with product), topic list filtered locally with zero latency | cheapest wins before any infrastructure |
 | Highlight transport | **private-use delimiter characters** (`U+E000` start, `U+E001` end) from Postgres, split into React nodes in the browser | no HTML from the API → no XSS surface; works for Cyrillic and accents |
 | Facet semantics | disjunctive faceting: OR within a facet, AND across facets; each facet's counts ignore its *own* filter | standard behaviour users expect |
 | URL state | `q`, `topic`, `cat`, `type`, `sort` in the query string | back button, shareable searches (Plan 1) |
@@ -140,13 +145,19 @@ in BR-1..BR-5 must keep Recall@3 within 1 pt per locale and improve the accent-l
 ## 4. Web implementation
 
 ### Data layer
-- `src/features/search/api.ts`: `search(params, signal)` with typed `SearchResponse` (adds `snippet`,
-  `title_hl`, `facets`, `matched_via`).
-- `useSearch(params)` (react-query): `queryKey = ['search', locale, internal, params]`,
-  `placeholderData: keepPreviousData`, abort via `signal`, `staleTime` 60 s.
-- `useDebouncedValue(value, 120)`; minimum 1 character in prefix mode, 2 otherwise.
+Build on the Phase 0 conventions (`docs/DEVELOPMENT.md`) rather than a parallel stack:
+- Extend `searchCards` in `src/lib/api.ts` (already takes an `AbortSignal`) — or add `src/features/search/api.ts`
+  with the same pattern — with the typed `SearchResponse` (adds `snippet`, `title_hl`, `facets`, `matched_via`)
+  and the new params (`topic[]`, `cat[]`, `type`, `sort`, `prefix`, `facets`, `snippets`).
+- Extend `SearchParams` / `kbKeys.search` in `src/data/keys.ts` (the key already carries `locale` and
+  `includeInternal`) and `searchQuery` / `useSearch` in `src/data/queries.ts`; add `placeholderData:
+  keepPreviousData` (see D7) and a `staleTime` of 60 s for search (default is 5 min). Cancellation and
+  stale-response protection come with it. Update the mock's `/search` (`src/mocks/api.ts`) with the same params.
+- Debounce: `SearchBar` debounces internally (250 ms) and must keep its echo protection; either lower its delay
+  to 120 ms or move to `useDebouncedValue(value, 120)`; minimum 1 character in prefix mode, 2 otherwise.
 - `src/lib/search-url.ts`: `parseSearchParams(URLSearchParams)` / `toSearchParams(state)` with allow-listed
-  values; unit-tested round trip, junk ignored, order-stable output.
+  values; unit-tested round trip, junk ignored, order-stable output. Generalises today's `useSearchQuery`
+  (`src/routes/useSearchQuery.ts`: push on the first search, replace on refinements).
 
 ### Highlighting
 - `src/lib/highlight.ts`
@@ -155,11 +166,11 @@ in BR-1..BR-5 must keep Recall@3 within 1 pt per locale and improve the accent-l
   - `highlightTokens(text, query)` fallback for fuzzy matches and for titles when the API sends none:
     accent-insensitive (`normalize('NFD')` **per character** so indexes stay aligned) and `ё`/`е` aware;
     tokens shorter than 2 chars ignored; escape regex metacharacters.
-- `<Highlight text query? />` renders `<mark>` nodes; **no `dangerouslySetInnerHTML`** (enable
-  `react/no-danger` as an ESLint error). Style: `bg-amber-200/70 text-slate-900 rounded-sm px-0.5`; verify
+- `<Highlight text query? />` renders `<mark>` nodes; **no `dangerouslySetInnerHTML`** — already an ESLint
+  error since Phase 0 (`no-restricted-syntax` rule in `eslint.config.js`, same effect as `react/no-danger`). Style: `bg-amber-200/70 text-slate-900 rounded-sm px-0.5`; verify
   contrast ≥ 4.5:1.
 
-### Command palette (`src/features/search/Palette.tsx`, lazy chunk)
+### Command palette (`src/features/search/Palette.tsx`, lazy chunk — `React.lazy` like the login form in `src/app/guards.tsx`; must stay out of the `npm run size` first load, D9)
 - Opens with `Ctrl/Cmd+K` and `/` (ignored while typing in inputs); header search field on desktop; full-screen
   sheet on phones. Built on `<dialog>` for focus trapping.
 - Sections: **Topics** (filtered locally from the already-loaded topic list — instant), **Questions** (top 3,
@@ -172,6 +183,8 @@ in BR-1..BR-5 must keep Recall@3 within 1 pt per locale and improve the accent-l
   `try/catch` — storage may be unavailable).
 
 ### Results page (`/:lang/search`)
+- New lazy route in `src/app/routes.tsx` + `searchPath()` in `src/lib/paths.ts`. Redirect today's search URLs
+  (`/:lang?q=…`, `/:lang/faq?q=…`) to it so links shared since Phase 0 keep working.
 - Layout: sticky query bar; filter chips (removable) + "Clear all"; result count (`aria-live`); sort select
   (Relevance | Recently updated); facet panel (left on ≥ lg, bottom-sheet `<dialog>` on mobile) as
   `<fieldset><legend>` checkbox groups with counts: **Type** (Questions / Cards), **Topic** (top 8 + "Show
@@ -202,7 +215,8 @@ Keys in all 5 dictionaries: `searchTitle`, `searchPlaceholderPalette`, `quickJum
   `ё/е`, Cyrillic, regex metacharacters, overlapping tokens), URL (de)serialization, debounce hook, recent-searches
   store (storage throwing).
 - **Component (RTL + MSW):** palette keyboard flow (open, type, ↑↓, Enter, Esc, focus return); **stale response
-  ignored** (first request delayed, second returns first → UI shows the second); filters update URL and results;
+  ignored** (first request delayed, second returns first → UI shows the second; the hook-level version exists
+  since Phase 0 in `src/data/queries.test.tsx`); filters update URL and results;
   zero-result states; facet counts; `Show more`.
 - **E2E (Playwright):** `Ctrl+K` → type → open a card → back returns to the palette-less page; filtered search
   URL reloads to the same state; mobile sheet; keyboard-only run; axe on palette and results.

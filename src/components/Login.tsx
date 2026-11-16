@@ -40,12 +40,12 @@ export function Login({
 
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-indigo-700 to-violet-800">
-      <div className="flex items-center justify-between px-4 py-4">
+      <header className="flex items-center justify-between px-4 py-4">
         <span className="font-semibold text-white">{t(locale, 'appTitle')}</span>
         <LocaleSwitcher locale={locale} onChange={onLocaleChange} />
-      </div>
+      </header>
 
-      <div className="flex flex-1 items-center justify-center px-4 pb-16">
+      <main className="flex flex-1 items-center justify-center px-4 pb-16">
         <form
           onSubmit={submit}
           className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl"
@@ -107,7 +107,7 @@ export function Login({
             {t(locale, mode === 'signIn' ? 'switchToSignUp' : 'switchToSignIn')}
           </button>
         </form>
-      </div>
+      </main>
     </div>
   );
 }

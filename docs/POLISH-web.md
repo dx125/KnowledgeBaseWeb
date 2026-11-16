@@ -3,9 +3,12 @@
 Split out of the backend repo's `docs/POLISH.md` when the web app moved to this repo. The
 backend halves (schema, `deploy.mjs`, SQL functions) stay in the backend plan; item letters
 match it. Status: **both items are implemented** in the current code (see `CardItem.tsx`,
-`lib/api.ts`, `i18n.ts`).
+`lib/api.ts`, `i18n.ts`). The code snippets below are the original plan; since Phase 0 (2026-11-16) the
+related panel fetches through the `useCardDetail` hook (`src/data/queries.ts`, cached per card + locale) and
+`getCard` takes an optional `AbortSignal`.
 
-After web changes run `npm run build`.
+After web changes run the checks CI runs: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`,
+`npm run size` (and `npm run e2e` for UI changes) — see `docs/DEVELOPMENT.md`.
 
 ---
 

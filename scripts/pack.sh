@@ -6,7 +6,8 @@
 #   bash scripts/pack.sh
 #
 # Contents: what git would commit (tracked files + new files not ignored by .gitignore;
-# every file when there is no git checkout), minus the exclusions in `excluded` below.
+# every file when there is no git checkout), minus the exclusions in `excluded` below —
+# including the top-level docs/ folder (project docs and roadmap plans).
 # Needs bash plus one of zip / python3 (or python) / 7z, and unzip / python / 7z to verify.
 set -euo pipefail
 
@@ -26,7 +27,11 @@ fail() {
 excluded() {
   case "/$1" in
     */node_modules | */node_modules/* | */dist | */dist/* | */coverage | */coverage/*) return 0 ;;
+    */dist-e2e | */dist-e2e/*) return 0 ;; # mock-mode build used by the e2e tests
     */.git | */.git/* | */.vite | */.vite/*) return 0 ;;
+    */test-results | */test-results/* | */playwright-report | */playwright-report/*) return 0 ;; # test output
+    */blob-report | */blob-report/*) return 0 ;;
+    /docs | /docs/*) return 0 ;; # project docs and plans stay out of the upload (top-level docs/ only)
     */.env.example | */.env.mock) return 1 ;; # the only env files allowed (no real values)
     */.env | */.env.*) return 0 ;;
     *.zip) return 0 ;;                           # no nested archives (stray exports, old uploads)

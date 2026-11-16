@@ -1,24 +1,23 @@
+import { Link } from 'react-router';
 import { t, type Locale } from '../i18n';
 import type { Topic } from '../lib/api';
+import { topicPath } from '../lib/paths';
 
 export function TopicGrid({
   topics,
   locale,
-  onSelect,
   countKey = 'cards',
 }: {
   topics: Topic[];
   locale: Locale;
-  onSelect: (topic: Topic) => void;
   countKey?: 'cards' | 'questions';
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {topics.map((topic) => (
-        <button
+        <Link
           key={topic.topic_id}
-          type="button"
-          onClick={() => onSelect(topic)}
+          to={topicPath(locale, topic.topic_id)}
           className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md"
         >
           <h3 className="mb-1 text-lg font-semibold text-slate-900">{topic.title}</h3>
@@ -37,7 +36,7 @@ export function TopicGrid({
               </span>
             )}
           </div>
-        </button>
+        </Link>
       ))}
     </div>
   );

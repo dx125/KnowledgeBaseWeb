@@ -1,15 +1,28 @@
 // HTTP client for the Knowledge Base API (Supabase Edge Function `kb`).
 // The browser talks ONLY to this API for data — never to the database directly.
 // Every request carries the signed-in user's access token (the API requires auth).
+// Every GET takes an optional AbortSignal, so callers (react-query) can cancel requests
+// whose result is no longer needed.
 
 import { API_BASE, ANON_KEY, authClient, isConfigured } from './auth';
 
 export { isConfigured };
 
 async function authHeaders(): Promise<Record<string, string>> {
-  const { data } = await authClient.auth.getSession();
+  const { data } = await authClient.getSession();
   const token = data.session?.access_token ?? ANON_KEY; // no session → anon (API will 401)
   return { apikey: ANON_KEY, Authorization: `Bearer ${token}` };
+}
+
+/** A non-2xx API response. `message` reads `API <status>[: <server message>]`. */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, detail = '') {
+    super(`API ${status}${detail ? `: ${detail}` : ''}`);
+    this.name = 'ApiError';
+    this.status = status;
+  }
 }
 
 async function handle<T>(res: Response): Promise<T> {
@@ -20,19 +33,17 @@ async function handle<T>(res: Response): Promise<T> {
     } catch {
       /* ignore */
     }
-    const err = new Error(`API ${res.status}${detail ? `: ${detail}` : ''}`) as Error & { status?: number };
-    err.status = res.status;
-    throw err;
+    throw new ApiError(res.status, detail);
   }
   return res.json() as Promise<T>;
 }
 
-async function apiGet<T>(path: string, params?: Record<string, unknown>): Promise<T> {
+async function apiGet<T>(path: string, params?: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
   const url = new URL(API_BASE + path);
   for (const [k, v] of Object.entries(params ?? {})) {
     if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));
   }
-  const res = await fetch(url.toString(), { headers: await authHeaders() });
+  const res = await fetch(url.toString(), { headers: await authHeaders(), signal });
   return handle<T>(res);
 }
 
@@ -129,15 +140,16 @@ export interface CardDetail {
 }
 
 // --- Profile -----------------------------------------------------------------
-export async function getMe(): Promise<Profile> {
-  return apiGet<Profile>('/me');
+export async function getMe(signal?: AbortSignal): Promise<Profile> {
+  return apiGet<Profile>('/me', undefined, signal);
 }
 
 // --- Card detail (related context) -------------------------------------------
-export async function getCard(cardId: string, locale: string): Promise<CardDetail> {
+export async function getCard(cardId: string, locale: string, signal?: AbortSignal): Promise<CardDetail> {
   const data = await apiGet<{ card: CardDetail }>(
     `/cards/${encodeURIComponent(cardId)}`,
     { locale },
+    signal,
   );
   return data.card;
 }
@@ -149,11 +161,16 @@ export async function setDefaultLocale(locale: string): Promise<Profile> {
 // --- Data --------------------------------------------------------------------
 const internalFlag = (includeInternal?: boolean) => (includeInternal ? '1' : undefined);
 
-export async function listTopics(locale: string, includeInternal?: boolean): Promise<Topic[]> {
-  const data = await apiGet<{ topics: Topic[] }>('/topics', {
-    locale,
-    internal: internalFlag(includeInternal),
-  });
+export async function listTopics(
+  locale: string,
+  includeInternal?: boolean,
+  signal?: AbortSignal,
+): Promise<Topic[]> {
+  const data = await apiGet<{ topics: Topic[] }>(
+    '/topics',
+    { locale, internal: internalFlag(includeInternal) },
+    signal,
+  );
   return data.topics;
 }
 
@@ -161,10 +178,12 @@ export async function getTopicCards(
   topicId: string,
   locale: string,
   includeInternal?: boolean,
+  signal?: AbortSignal,
 ): Promise<TopicCard[]> {
   const data = await apiGet<{ cards: TopicCard[] }>(
     `/topics/${encodeURIComponent(topicId)}/cards`,
     { locale, internal: internalFlag(includeInternal) },
+    signal,
   );
   return data.cards;
 }
@@ -177,16 +196,21 @@ export async function searchCards(params: {
   limit?: number;
   offset?: number;
   includeInternal?: boolean;
+  signal?: AbortSignal;
 }): Promise<SearchResult> {
-  const data = await apiGet<{ results: SearchCard[]; total: number }>('/search', {
-    q: params.query,
-    locale: params.locale,
-    topic: params.topicId ?? undefined,
-    category: params.category ?? undefined,
-    limit: params.limit ?? 20,
-    offset: params.offset ?? 0,
-    internal: internalFlag(params.includeInternal),
-  });
+  const data = await apiGet<{ results: SearchCard[]; total: number }>(
+    '/search',
+    {
+      q: params.query,
+      locale: params.locale,
+      topic: params.topicId ?? undefined,
+      category: params.category ?? undefined,
+      limit: params.limit ?? 20,
+      offset: params.offset ?? 0,
+      internal: internalFlag(params.includeInternal),
+    },
+    params.signal,
+  );
   // The API gained ?category=faq later; until that Edge Function build is live the
   // param is ignored server-side, so we also filter client-side. FAQ cards are
   // exactly the cards under topic.faq_* topics.
@@ -217,12 +241,17 @@ export async function listQuestions(params: {
   topicId?: string | null;
   limit?: number;
   includeInternal?: boolean;
+  signal?: AbortSignal;
 }): Promise<QuestionRow[]> {
-  const data = await apiGet<{ questions: QuestionRow[] }>('/questions', {
-    locale: params.locale,
-    topic: params.topicId ?? undefined,
-    limit: params.limit ?? 100,
-    internal: internalFlag(params.includeInternal),
-  });
+  const data = await apiGet<{ questions: QuestionRow[] }>(
+    '/questions',
+    {
+      locale: params.locale,
+      topic: params.topicId ?? undefined,
+      limit: params.limit ?? 100,
+      internal: internalFlag(params.includeInternal),
+    },
+    params.signal,
+  );
   return data.questions;
 }

@@ -1,0 +1,69 @@
+# CI: types, lint, unit/integration tests with coverage, production build, then browser
+# smoke tests against mock mode. No secrets: the app has none (VITE_* values are public,
+# and tests/e2e use the committed dummy values in .env.mock).
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: No env files or build output in git
+        run: |
+          bad="$(git ls-files | grep -E '^dist/|(^|/)\.env($|\.)' | grep -vE '(^|/)\.env\.(example|mock)$' || true)"
+          if [ -n "$bad" ]; then echo "Tracked files that must not be committed:"; echo "$bad"; exit 1; fi
+
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test:coverage
+      - run: npm run build
+      - name: Initial JS budget (150 kB gzip)
+        run: npm run size
+      - run: npm run build:mock
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+
+  e2e:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+        env:
+          CI: 'true'
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

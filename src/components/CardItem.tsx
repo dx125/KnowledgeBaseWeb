@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { t } from '../i18n';
+import { useState } from 'react';
+import { t, type Locale } from '../i18n';
 import { MetaBadges, StatusBadge } from './Badges';
-import { getCard, type CardDetail, type CardStatus, type CardType, type Visibility } from '../lib/api';
+import { useCardDetail } from '../data/queries';
+import type { CardDetail, CardStatus, CardType, Visibility } from '../lib/api';
 
 export interface CardView {
   card_id: string;
@@ -27,35 +28,27 @@ function formatDate(value: string | null): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function CardItem({ card, locale }: { card: CardView; locale: string }) {
+export function CardItem({ card, locale }: { card: CardView; locale: Locale }) {
   const [expanded, setExpanded] = useState(false);
   const hasMore = Boolean(card.body && card.body !== card.short_body);
   const isLanding = card.card_type === 'summary' || card.card_type === 'public_overview';
   const isInternal = card.visibility === 'internal';
   const lowEvidence = card.alignment_score != null && card.alignment_score < 0.5;
 
-  // Related context (glossary terms + entities), lazy-loaded on first open.
-  const [related, setRelated] = useState<CardDetail | null>(null);
-  const [relatedOpen, setRelatedOpen] = useState(false);
-  const [relatedLoading, setRelatedLoading] = useState(false);
+  // Related context (glossary terms, entities, resources), fetched on first open and cached
+  // per card + locale. The panel is open for one card + locale: switching language closes it.
+  const panelKey = `${card.card_id}|${locale}`;
+  const [openPanel, setOpenPanel] = useState<string | null>(null);
+  const relatedOpen = openPanel === panelKey;
+  const relatedQuery = useCardDetail({ cardId: card.card_id, locale }, { enabled: relatedOpen });
+  const relatedLoading = relatedQuery.isPending;
+  // A failed lookup reads as "no related terms", as it always has.
+  const related: CardDetail | null =
+    relatedQuery.data ??
+    (relatedQuery.isError ? { card_id: card.card_id, glossary: [], entities: [], resources: [] } : null);
 
-  // Re-fetch on locale/card change.
-  useEffect(() => {
-    setRelated(null);
-    setRelatedOpen(false);
-  }, [locale, card.card_id]);
-
-  async function toggleRelated() {
-    if (!relatedOpen && !related) {
-      setRelatedLoading(true);
-      try {
-        setRelated(await getCard(card.card_id, locale));
-      } catch {
-        setRelated({ card_id: card.card_id, glossary: [], entities: [], resources: [] });
-      }
-      setRelatedLoading(false);
-    }
-    setRelatedOpen((v) => !v);
+  function toggleRelated() {
+    setOpenPanel(relatedOpen ? null : panelKey);
   }
 
   const hasRelated = Boolean(
@@ -111,8 +104,9 @@ export function CardItem({ card, locale }: { card: CardView; locale: string }) {
             {t(locale, 'limitedEvidence')}
           </span>
         )}
+        {/* slate-600: ≥ 4.5:1 contrast on every card tint (slate-500 falls to 4.4:1 on landing cards). */}
         {card.last_updated && (
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-slate-600">
             {t(locale, 'updated')}: {formatDate(card.last_updated)}
           </span>
         )}
@@ -136,9 +130,9 @@ export function CardItem({ card, locale }: { card: CardView; locale: string }) {
       {relatedOpen && (
         <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50 p-3">
           {relatedLoading ? (
-            <p className="text-xs text-slate-400">{t(locale, 'loading')}</p>
+            <p className="text-xs text-slate-500">{t(locale, 'loading')}</p>
           ) : !hasRelated ? (
-            <p className="text-xs text-slate-400">{t(locale, 'noRelated')}</p>
+            <p className="text-xs text-slate-500">{t(locale, 'noRelated')}</p>
           ) : (
             <div className="space-y-3">
               {(related!.resources?.length ?? 0) > 0 && (

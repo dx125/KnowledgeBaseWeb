@@ -71,7 +71,9 @@ type StringKey =
   | 'backToFaqTopics'
   | 'questions'
   | 'mostAsked'
-  | 'browseByTopic';
+  | 'browseByTopic'
+  | 'notFoundTitle'
+  | 'notFoundHint';
 
 type Dict = Record<StringKey, string>;
 
@@ -134,6 +136,8 @@ const en: Dict = {
   questions: 'questions',
   mostAsked: 'Most asked',
   browseByTopic: 'Browse by topic',
+  notFoundTitle: 'Page not found',
+  notFoundHint: 'This link may be outdated or mistyped.',
 };
 
 const ru: Dict = {
@@ -195,6 +199,8 @@ const ru: Dict = {
   questions: 'вопросов',
   mostAsked: 'Чаще всего спрашивают',
   browseByTopic: 'По темам',
+  notFoundTitle: 'Страница не найдена',
+  notFoundHint: 'Возможно, ссылка устарела или в ней опечатка.',
 };
 
 const es: Dict = {
@@ -256,6 +262,8 @@ const es: Dict = {
   questions: 'preguntas',
   mostAsked: 'Lo más preguntado',
   browseByTopic: 'Por tema',
+  notFoundTitle: 'Página no encontrada',
+  notFoundHint: 'Puede que el enlace esté desactualizado o mal escrito.',
 };
 
 const de: Dict = {
@@ -317,6 +325,8 @@ const de: Dict = {
   questions: 'Fragen',
   mostAsked: 'Am häufigsten gefragt',
   browseByTopic: 'Nach Thema',
+  notFoundTitle: 'Seite nicht gefunden',
+  notFoundHint: 'Der Link ist vielleicht veraltet oder falsch geschrieben.',
 };
 
 const pt: Dict = {
@@ -378,6 +388,8 @@ const pt: Dict = {
   questions: 'perguntas',
   mostAsked: 'Mais perguntadas',
   browseByTopic: 'Navegar por tema',
+  notFoundTitle: 'Página não encontrada',
+  notFoundHint: 'O link pode estar desatualizado ou digitado errado.',
 };
 
 const DICTS: Record<Locale, Dict> = { en, ru, es, de, pt };
